@@ -82,82 +82,20 @@ async def on_guild_channel_create(channel):
     # =====================================================
     # DHC SYSTEM
     # =====================================================
-    elif cat == "Dhc":
+    elif cat == "dhc":
 
-        # STEP 1: AMOUNT
-        if state["step"] == "amount":
+        channel_state[channel.id] = {
+            "step": "amount",
+            "amount": None
+        }
 
-            if content in SHIRTS:
+        await asyncio.sleep(3)
 
-                state["amount"] = content
-                state["step"] = "payment"
+        await channel.send(
+            "Welcome to the server! How much Da Hood cash do you want to buy?\n"
+            "Reply with: 1m, 2m, 3m, 4m, 5m, 6m, 7m, 8m, 9m, 10m, 15m, 20m, 25m"
+        )
 
-                await channel.edit(name=content)
-
-                await channel.send(
-                    "Alright! Now choose the following payment type:\n"
-                    "Robux, Crypto, Paypal"
-                )
-
-            return
-
-        # STEP 2: PAYMENT
-        if state["step"] == "payment":
-
-            amount = state.get("amount")
-
-            if "robux" in content:
-
-                state["step"] = "waiting_bought"
-
-                await channel.send(
-                    f"Alright! Buy this shirt and then continue:\n\n"
-                    f"{SHIRTS[amount]}\n\n"
-                    "Reply with: bought <your roblox username>"
-                )
-
-                return
-
-            if "paypal" in content:
-
-                await channel.send(PAYPAL_MESSAGE)
-
-                del channel_state[channel.id]
-
-                return
-
-            if "crypto" in content:
-
-                await channel.send(
-                    "Perfect, now wait for Grave or an admin to come further assist you."
-                )
-
-                del channel_state[channel.id]
-
-                return
-
-        # STEP 3: BOUGHT + USERNAME
-        if state["step"] == "waiting_bought":
-
-            if content.startswith("bought"):
-
-                parts = content.split()
-
-                if len(parts) < 2:
-                    await channel.send("Provide your username.")
-                    return
-
-                username = parts[1]
-
-                await channel.send(
-                    f"Perfect, now wait for Grave or an admin to come further assist you.\n\n"
-                    f"🧾 Roblox Username: {username}"
-                )
-
-                del channel_state[channel.id]
-
-            return
-            
     # =====================================================
     # LIMITEDS SYSTEM
     # =====================================================
@@ -250,13 +188,7 @@ async def on_message(message):
 
                 await channel.edit(name=f"{trade_type}-{payment}")
 
-                # 🔥 ONLY CHANGE: buying vs selling behavior
-                if trade_type == "buying":
-                    await channel.send(PAYPAL_MESSAGE)
-                else:
-                    await channel.send(
-                        "Perfect, now wait for Grave or an admin to come further assist you."
-                    )
+                await channel.send(PAYPAL_MESSAGE)
 
                 del channel_state[channel.id]
                 return
@@ -274,6 +206,82 @@ async def on_message(message):
 
                 del channel_state[channel.id]
                 return
+
+    # =====================================================
+    # DHC SYSTEM
+    # =====================================================
+    elif cat == "dhc":
+
+        # STEP 1: AMOUNT
+        if state["step"] == "amount":
+
+            if content in SHIRTS:
+
+                state["amount"] = content
+                state["step"] = "payment"
+
+                await channel.edit(name=content)
+
+                await channel.send(
+                    "Alright! Now choose the following payment type:\n"
+                    "Robux, Crypto, Paypal"
+                )
+
+            return
+
+        # STEP 2: PAYMENT
+        if state["step"] == "payment":
+
+            amount = state.get("amount")
+
+            if "robux" in content:
+
+                state["step"] = "waiting_bought"
+
+                await channel.send(
+                    f"Alright! Buy this shirt and then continue:\n\n"
+                    f"{SHIRTS[amount]}\n\n"
+                    "Reply with: bought <your roblox username>"
+                )
+                return
+
+            if "paypal" in content:
+
+                await channel.send(PAYPAL_MESSAGE)
+
+                del channel_state[channel.id]
+                return
+
+            if "crypto" in content:
+
+                await channel.send(
+                    "Perfect, now wait for Grave or an admin to come further assist you."
+                )
+
+                del channel_state[channel.id]
+                return
+
+        # STEP 3: BOUGHT + USERNAME
+        if state["step"] == "waiting_bought":
+
+            if content.startswith("bought"):
+
+                parts = content.split()
+
+                if len(parts) < 2:
+                    await channel.send("Provide your username.")
+                    return
+
+                username = parts[1]
+
+                await channel.send(
+                    f"Perfect, now wait for Grave or an admin to come further assist you.\n\n"
+                    f"🧾 Roblox Username: {username}"
+                )
+
+                del channel_state[channel.id]
+
+            return
 
 
 # =========================

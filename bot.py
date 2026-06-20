@@ -37,6 +37,12 @@ SHIRTS = {
 }
 
 
+PAYPAL_MESSAGE = (
+    "Pay this PayPal (Friends & Family) and send a screenshot afterwards:\n"
+    "https://www.paypal.com/paypalme/bodygrave"
+)
+
+
 # =========================
 # READY
 # =========================
@@ -122,13 +128,11 @@ async def on_message(message):
             if "selling" in content:
                 state["type"] = "selling"
                 state["step"] = "waiting_item"
-
                 await channel.send("Alright! What skin are you Selling?")
 
             elif "buying" in content:
                 state["type"] = "buying"
                 state["step"] = "waiting_item"
-
                 await channel.send("Alright! What skin are you Buying?")
 
             return
@@ -136,19 +140,30 @@ async def on_message(message):
         if state["step"] == "waiting_item":
 
             state["step"] = "payment"
-
             await channel.send(
                 "Alright perfect, what payment method would you prefer for this? "
                 "(say 'crypto' or 'paypal' to continue)"
             )
-
             return
 
         if state["step"] == "payment":
 
-            if "paypal" in content or "crypto" in content:
+            if "paypal" in content:
 
-                payment = "paypal" if "paypal" in content else "crypto"
+                payment = "paypal"
+                trade_type = state.get("type", "unknown")
+
+                await channel.edit(name=f"{trade_type}-{payment}")
+
+                # FINAL MESSAGE
+                await channel.send(PAYPAL_MESSAGE)
+
+                del channel_state[channel.id]
+                return
+
+            if "crypto" in content:
+
+                payment = "crypto"
                 trade_type = state.get("type", "unknown")
 
                 await channel.edit(name=f"{trade_type}-{payment}")
@@ -160,8 +175,7 @@ async def on_message(message):
                 )
 
                 del channel_state[channel.id]
-
-            return
+                return
 
     # =====================================================
     # DHC SYSTEM
@@ -199,10 +213,17 @@ async def on_message(message):
                     f"{SHIRTS[amount]}\n\n"
                     "Reply with: bought <your roblox username>"
                 )
-
                 return
 
-            if "crypto" in content or "paypal" in content:
+            if "paypal" in content:
+
+                # FINAL MESSAGE (NO FURTHER FLOW)
+                await channel.send(PAYPAL_MESSAGE)
+
+                del channel_state[channel.id]
+                return
+
+            if "crypto" in content:
 
                 state["step"] = "done"
 
@@ -211,7 +232,6 @@ async def on_message(message):
                 )
 
                 del channel_state[channel.id]
-
                 return
 
         # STEP 3: BOUGHT + USERNAME
@@ -226,6 +246,8 @@ async def on_message(message):
                     return
 
                 username = parts[1]
+
+                state["step"] = "done"
 
                 await channel.send(
                     f"Perfect, now wait for Grave or an admin to come further assist you.\n\n"

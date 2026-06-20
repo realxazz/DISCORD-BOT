@@ -181,16 +181,14 @@ async def on_message(message):
 
         if state["step"] == "payment":
 
-                if "paypal" in content:
+            if "paypal" in content:
 
                 payment = "paypal"
                 trade_type = state.get("type", "unknown")
 
                 await channel.edit(name=f"{trade_type}-{payment}")
 
-                await channel.send(
-                "Perfect, now wait for Grave or an admin to come further assist you."
-                )
+                await channel.send(PAYPAL_MESSAGE)
 
                 del channel_state[channel.id]
                 return

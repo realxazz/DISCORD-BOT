@@ -82,7 +82,7 @@ async def on_guild_channel_create(channel):
      # =====================================================
     # DHC SYSTEM
     # =====================================================
-    elif cat == "dhc":
+    elif cat == "Dhc":
 
         # STEP 1: AMOUNT
         if state["step"] == "amount":

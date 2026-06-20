@@ -129,6 +129,16 @@ async def on_guild_channel_create(channel):
             "Blade Ball Tickets are manually handled, wait for Grave or an admin."
         )
 
+# =====================================================
+# RBXS SYSTEM
+# =====================================================
+elif cat == "rbxs":
+
+    await asyncio.sleep(1.5)
+
+    await channel.send(
+        "RBXS Tickets are manually handled, wait for Grave or an admin."
+    )
 
 # =========================
 # MESSAGE HANDLER

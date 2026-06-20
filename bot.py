@@ -79,7 +79,7 @@ async def on_guild_channel_create(channel):
             "(say 'buying' or 'selling' to continue)"
         )
 
-     # =====================================================
+    # =====================================================
     # DHC SYSTEM
     # =====================================================
     elif cat == "Dhc":
@@ -157,6 +157,9 @@ async def on_guild_channel_create(channel):
                 del channel_state[channel.id]
 
             return
+            
+             )
+            
     # =====================================================
     # LIMITEDS SYSTEM
     # =====================================================

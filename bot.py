@@ -21,25 +21,25 @@ STAFF_ROLE_ID = 1517204620525699373
 # SHIRTS (ALL AMOUNTS)
 # =========================
 SHIRTS = {
-    "1m": "https://www.roblox.com/catalog/17747297153/1-mil",
-    "2m": "https://www.roblox.com/catalog/17747298747/2-mil",
-    "3m": "https://www.roblox.com/catalog/17747300141/3-mil",
-    "4m": "https://www.roblox.com/catalog/17747302120/4-mil",
-    "5m": "https://www.roblox.com/catalog/17747303640/5-mil",
-    "6m": "https://www.roblox.com/catalog/17747305392/6-mil",
-    "7m": "https://www.roblox.com/catalog/17747306563/7-mil",
-    "8m": "https://www.roblox.com/catalog/17747307813/8-mil",
-    "9m": "https://www.roblox.com/catalog/17747309285/9-mil",
-    "10m": "https://www.roblox.com/catalog/17747311491/10-mil",
-    "15m": "https://www.roblox.com/catalog/17747312839/15-mil",
-    "20m": "https://www.roblox.com/catalog/17747314236/20-mil",
-    "25m": "https://www.roblox.com/catalog/17747315326/25-mil",
+    "1m": "[roblox.com](https://www.roblox.com/catalog/17747297153/1-mil)",
+    "2m": "[roblox.com](https://www.roblox.com/catalog/17747298747/2-mil)",
+    "3m": "[roblox.com](https://www.roblox.com/catalog/17747300141/3-mil)",
+    "4m": "[roblox.com](https://www.roblox.com/catalog/17747302120/4-mil)",
+    "5m": "[roblox.com](https://www.roblox.com/catalog/17747303640/5-mil)",
+    "6m": "[roblox.com](https://www.roblox.com/catalog/17747305392/6-mil)",
+    "7m": "[roblox.com](https://www.roblox.com/catalog/17747306563/7-mil)",
+    "8m": "[roblox.com](https://www.roblox.com/catalog/17747307813/8-mil)",
+    "9m": "[roblox.com](https://www.roblox.com/catalog/17747309285/9-mil)",
+    "10m": "[roblox.com](https://www.roblox.com/catalog/17747311491/10-mil)",
+    "15m": "[roblox.com](https://www.roblox.com/catalog/17747312839/15-mil)",
+    "20m": "[roblox.com](https://www.roblox.com/catalog/17747314236/20-mil)",
+    "25m": "[roblox.com](https://www.roblox.com/catalog/17747315326/25-mil)",
 }
 
 
 PAYPAL_MESSAGE = (
     "Pay this PayPal (Friends & Family) and send a screenshot afterwards:\n"
-    "https://www.paypal.com/paypalme/bodygrave"
+    "[paypal.com](https://www.paypal.com/paypalme/bodygrave)"
 )
 
 
@@ -188,7 +188,12 @@ async def on_message(message):
 
                 await channel.edit(name=f"{trade_type}-{payment}")
 
-                await channel.send(PAYPAL_MESSAGE)
+                if trade_type == "buying":
+                    await channel.send(
+                        "Perfect, now wait for Grave or an admin to come further assist you."
+                    )
+                else:
+                    await channel.send(PAYPAL_MESSAGE)
 
                 del channel_state[channel.id]
                 return

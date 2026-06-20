@@ -65,9 +65,9 @@ async def on_guild_channel_create(channel):
 
     cat = channel.category.name.lower()
 
-    # -------------------------
+    # =====================================================
     # SKINS SYSTEM
-    # -------------------------
+    # =====================================================
     if cat == "skins":
 
         channel_state[channel.id] = {"step": "start"}
@@ -79,9 +79,9 @@ async def on_guild_channel_create(channel):
             "(say 'buying' or 'selling' to continue)"
         )
 
-    # -------------------------
+    # =====================================================
     # DHC SYSTEM
-    # -------------------------
+    # =====================================================
     elif cat == "dhc":
 
         channel_state[channel.id] = {
@@ -96,15 +96,37 @@ async def on_guild_channel_create(channel):
             "Reply with: 1m, 2m, 3m, 4m, 5m, 6m, 7m, 8m, 9m, 10m, 15m, 20m, 25m"
         )
 
-    # -------------------------
-    # LIMITEDS SYSTEM (NEW)
-    # -------------------------
+    # =====================================================
+    # LIMITEDS SYSTEM
+    # =====================================================
     elif cat == "limiteds":
 
         await asyncio.sleep(1.5)
 
         await channel.send(
             "Limited Tickets are manually handled, wait for Grave or an admin."
+        )
+
+    # =====================================================
+    # ADOPT ME SYSTEM
+    # =====================================================
+    elif cat == "adopt me":
+
+        await asyncio.sleep(1.5)
+
+        await channel.send(
+            "Adopt Me Tickets are manually handled, wait for Grave or an admin."
+        )
+
+    # =====================================================
+    # BLADE BALL SYSTEM
+    # =====================================================
+    elif cat == "blade ball":
+
+        await asyncio.sleep(1.5)
+
+        await channel.send(
+            "Blade Ball Tickets are manually handled, wait for Grave or an admin."
         )
 
 

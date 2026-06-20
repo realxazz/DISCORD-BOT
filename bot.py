@@ -96,6 +96,17 @@ async def on_guild_channel_create(channel):
             "Reply with: 1m, 2m, 3m, 4m, 5m, 6m, 7m, 8m, 9m, 10m, 15m, 20m, 25m"
         )
 
+    # -------------------------
+    # LIMITEDS SYSTEM (NEW)
+    # -------------------------
+    elif cat == "limiteds":
+
+        await asyncio.sleep(1.5)
+
+        await channel.send(
+            "Limited Tickets are manually handled, wait for Grave or an admin."
+        )
+
 
 # =========================
 # MESSAGE HANDLER
@@ -155,7 +166,6 @@ async def on_message(message):
 
                 await channel.edit(name=f"{trade_type}-{payment}")
 
-                # FINAL MESSAGE
                 await channel.send(PAYPAL_MESSAGE)
 
                 del channel_state[channel.id]
@@ -167,8 +177,6 @@ async def on_message(message):
                 trade_type = state.get("type", "unknown")
 
                 await channel.edit(name=f"{trade_type}-{payment}")
-
-                state["step"] = "done"
 
                 await channel.send(
                     "Perfect, now wait for Grave or an admin to come further assist you."
@@ -217,15 +225,12 @@ async def on_message(message):
 
             if "paypal" in content:
 
-                # FINAL MESSAGE (NO FURTHER FLOW)
                 await channel.send(PAYPAL_MESSAGE)
 
                 del channel_state[channel.id]
                 return
 
             if "crypto" in content:
-
-                state["step"] = "done"
 
                 await channel.send(
                     "Perfect, now wait for Grave or an admin to come further assist you."
@@ -246,8 +251,6 @@ async def on_message(message):
                     return
 
                 username = parts[1]
-
-                state["step"] = "done"
 
                 await channel.send(
                     f"Perfect, now wait for Grave or an admin to come further assist you.\n\n"

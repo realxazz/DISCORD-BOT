@@ -418,6 +418,9 @@ async def v(ctx):
 
     state["amount"] = amount
 
+    if state.get("step") is None:
+        state["step"] = "done"
+
     await channel.edit(name=f"{amount}-paid")
 
     await channel.send(
@@ -463,8 +466,9 @@ async def claim(ctx):
 
     state = get_or_create_ticket_state(channel.id)
 
-    if state.get("claimed_by"):
-        await ctx.send("❌ This ticket has already been claimed.")
+    finished_by = state.get("finished_by")
+    if finished_by:
+        await ctx.send("❌ This ticket has already been finished.")
         return
 
     amount = state.get("amount")
@@ -475,10 +479,16 @@ async def claim(ctx):
         await ctx.send("❌ Could not detect the DHC amount for this ticket.")
         return
 
+    existing_claimed_by = state.get("claimed_by")
+    if existing_claimed_by and existing_claimed_by != ctx.author.id:
+        await ctx.send("❌ This ticket has already been claimed.")
+        return
+
     state["amount"] = amount
     state["claimed_by"] = ctx.author.id
+    state["step"] = "claimed"
 
-    safe_name = safe_username(ctx.author.name)
+    safe_name = safe_username(ctx.author.display_name)
     await channel.edit(name=f"{amount}-claimed-{safe_name}")
 
     await ctx.send(f"✅ {ctx.author.mention} has claimed this ticket.")
@@ -516,6 +526,12 @@ async def finished(ctx):
     state["amount"] = amount
 
     claimed_by = state.get("claimed_by")
+    finished_by = state.get("finished_by")
+
+    if finished_by:
+        await ctx.send("❌ This ticket has already been finished.")
+        return
+
     if claimed_by and claimed_by != ctx.author.id and not has_role(ctx.author, STAFF_ROLE_ID):
         await ctx.send("❌ Only the person who claimed this ticket can finish it.")
         return
@@ -531,6 +547,7 @@ async def finished(ctx):
     save_stats()
 
     state["finished_by"] = ctx.author.id
+    state["step"] = "finished"
 
     log_channel = bot.get_channel(LOG_CHANNEL_ID)
     if log_channel is None:
@@ -585,12 +602,23 @@ async def finished(ctx):
 @bot.command(name="dhc")
 async def dhc_leaderboard(ctx):
 
-    if not dhc_stats:
+    load_stats()
+
+    valid_stats = {
+        user_id: stats
+        for user_id, stats in dhc_stats.items()
+        if isinstance(stats, dict)
+        and isinstance(stats.get("dhc"), int)
+        and isinstance(stats.get("rbx"), int)
+        and (stats.get("dhc", 0) > 0 or stats.get("rbx", 0) > 0)
+    }
+
+    if not valid_stats:
         await ctx.send("No DHC sales have been logged yet.")
         return
 
     sorted_stats = sorted(
-        dhc_stats.items(),
+        valid_stats.items(),
         key=lambda item: item[1]["dhc"],
         reverse=True
     )
@@ -600,7 +628,7 @@ async def dhc_leaderboard(ctx):
     total_rbx = 0
 
     for user_id, stats in sorted_stats[:10]:
-        member = ctx.guild.get_member(user_id)
+        member = ctx.guild.get_member(user_id) if ctx.guild else None
 
         if member:
             name = member.display_name

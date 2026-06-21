@@ -39,7 +39,7 @@ SHIRTS = {
 
 PAYPAL_MESSAGE = (
     "Pay this PayPal (Friends & Family) and send a screenshot afterwards:\n"
-    "[paypal.me/bodygrave](https://www.paypal.com/paypalme/bodygrave)"
+    "[paypal.com](https://www.paypal.com/paypalme/bodygrave)"
 )
 
 
@@ -130,7 +130,7 @@ async def on_guild_channel_create(channel):
         )
 
     # =====================================================
-    # ROBUX SYSTEM
+    # RBXS SYSTEM
     # =====================================================
     elif cat == "rbxs":
 
@@ -340,6 +340,19 @@ async def v(ctx):
         "Once a Dropper is available, they will make you join a private server link or ask you to add them on Roblox.\n"
         "After receiving your order, please vouch your dropper."
     )
+
+
+# =========================
+# STAFF PAYPAL COMMAND
+# =========================
+@bot.command()
+async def pp(ctx):
+
+    if not any(role.id == STAFF_ROLE_ID for role in ctx.author.roles):
+        await ctx.send("❌ You don't have permission to use this command.")
+        return
+
+    await ctx.send("[paypal.com](https://www.paypal.com/paypalme/bodygrave)")
 
 
 bot.run(TOKEN)

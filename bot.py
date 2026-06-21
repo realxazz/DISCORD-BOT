@@ -21,19 +21,19 @@ STAFF_ROLE_ID = 1517204620525699373
 # SHIRTS (ALL AMOUNTS)
 # =========================
 SHIRTS = {
-    "1m": "[roblox.com](https://www.roblox.com/catalog/17747297153/1-mil)",
-    "2m": "[roblox.com](https://www.roblox.com/catalog/17747298747/2-mil)",
-    "3m": "[roblox.com](https://www.roblox.com/catalog/17747300141/3-mil)",
-    "4m": "[roblox.com](https://www.roblox.com/catalog/17747302120/4-mil)",
-    "5m": "[roblox.com](https://www.roblox.com/catalog/17747303640/5-mil)",
-    "6m": "[roblox.com](https://www.roblox.com/catalog/17747305392/6-mil)",
-    "7m": "[roblox.com](https://www.roblox.com/catalog/17747306563/7-mil)",
-    "8m": "[roblox.com](https://www.roblox.com/catalog/17747307813/8-mil)",
-    "9m": "[roblox.com](https://www.roblox.com/catalog/17747309285/9-mil)",
-    "10m": "[roblox.com](https://www.roblox.com/catalog/17747311491/10-mil)",
-    "15m": "[roblox.com](https://www.roblox.com/catalog/17747312839/15-mil)",
-    "20m": "[roblox.com](https://www.roblox.com/catalog/17747314236/20-mil)",
-    "25m": "[roblox.com](https://www.roblox.com/catalog/17747315326/25-mil)",
+    "1m": "[1 Million DHC Shirt](https://www.roblox.com/catalog/17747297153/1-mil)",
+    "2m": "[2 Million DHC Shirt](https://www.roblox.com/catalog/17747298747/2-mil)",
+    "3m": "[3 Million DHC Shirt](https://www.roblox.com/catalog/17747300141/3-mil)",
+    "4m": "[4 Million DHC Shirt](https://www.roblox.com/catalog/17747302120/4-mil)",
+    "5m": "[5 Million DHC Shirt](https://www.roblox.com/catalog/17747303640/5-mil)",
+    "6m": "[6 Million DHC Shirt](https://www.roblox.com/catalog/17747305392/6-mil)",
+    "7m": "[7 Million DHC Shirt](https://www.roblox.com/catalog/17747306563/7-mil)",
+    "8m": "[8 Million DHC Shirt](https://www.roblox.com/catalog/17747307813/8-mil)",
+    "9m": "[9 Million DHC Shirt](https://www.roblox.com/catalog/17747309285/9-mil)",
+    "10m": "[10 Million DHC Shirt](https://www.roblox.com/catalog/17747311491/10-mil)",
+    "15m": "[15 Million DHC Shirt](https://www.roblox.com/catalog/17747312839/15-mil)",
+    "20m": "[20 Million DHC Shirt](https://www.roblox.com/catalog/17747314236/20-mil)",
+    "25m": "[25 Million DHC Shirt](https://www.roblox.com/catalog/17747315326/25-mil)",
 }
 
 
@@ -134,10 +134,16 @@ async def on_guild_channel_create(channel):
     # =====================================================
     elif cat == "rbxs":
 
+        channel_state[channel.id] = {
+            "step": "amount",
+            "amount": None,
+            "payment": None
+        }
+
         await asyncio.sleep(1.5)
 
         await channel.send(
-            "Robux Tickets are manually handled, wait for Grave or an admin."
+            "How much robux would you like to buy? (FX: 1k, 10k, 100k, 1m)"
         )
 
 
@@ -297,6 +303,51 @@ async def on_message(message):
 
                 del channel_state[channel.id]
 
+            return
+
+    # =====================================================
+    # RBXS SYSTEM
+    # =====================================================
+    elif cat == "rbxs":
+
+        # STEP 1: AMOUNT
+        if state["step"] == "amount":
+
+            state["amount"] = content
+            state["step"] = "payment"
+
+            await channel.edit(name=content)
+
+            await channel.send(
+                "Alright! Now choose the following payment type:\n"
+                "Crypto, Paypal"
+            )
+            return
+
+        # STEP 2: PAYMENT
+        if state["step"] == "payment":
+
+            if "crypto" in content or "paypal" in content:
+
+                payment = "crypto" if "crypto" in content else "paypal"
+                amount = state.get("amount", "unknown")
+
+                state["payment"] = payment
+                state["step"] = "group_time"
+
+                await channel.edit(name=f"{amount}-{payment}")
+
+                await channel.send("How long have you been in the graveyard group?")
+            return
+
+        # STEP 3: GROUP TIME
+        if state["step"] == "group_time":
+
+            await channel.send(
+                "Perfect, now wait for Grave or an admin to come further assist you."
+            )
+
+            del channel_state[channel.id]
             return
 
 

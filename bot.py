@@ -98,7 +98,7 @@ def get_or_create_ticket_state(channel_id):
 
 
 def safe_username(name):
-    cleaned = re.sub(r"[^a-zA-Z0-9-]", "", name.lower().replace(" ", "-"))
+    cleaned = re.sub(r"[^a-zA-Z0-9-]", "", name.lower().replace("", "-"))
     return cleaned[:40] if cleaned else "user"
 
 
@@ -438,35 +438,6 @@ async def v(ctx):
         return
 
     state["amount"] = amount
-    state["step"] = "verified"
-
-    claimed_by = state.get("claimed_by")
-
-    if claimed_by:
-        member = ctx.guild.get_member(claimed_by)
-        if member:
-            safe_name = safe_username(member.display_name)
-            await channel.edit(name=f"{amount}-paid-claimed-{safe_name}")
-        else:
-            await channel.edit(name=f"{amount}-paid-claimed")
-    else:
-        await channel.edit(name=f"{amount}-paid")
-
-    await channel.send(
-        f"✅ Order is verified for item: {amount}!\n\n"
-        "What now?\n"
-        "Please be patient, your order can take up to a few days\n"
-        "Once a Dropper is available, they will make you join a private server link or ask you to add them on Roblox.\n"
-        "After receiving your order, please vouch your dropper."
-    )
-        return
-
-    state["amount"] = amount
-
-    if state.get("step") == "finished":
-        await ctx.send("❌ This ticket has already been finished.")
-        return
-
     state["step"] = "verified"
 
     new_name = build_dhc_channel_name(amount, state, ctx.guild)

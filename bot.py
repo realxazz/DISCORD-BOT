@@ -143,7 +143,7 @@ async def on_guild_channel_create(channel):
         await asyncio.sleep(1.5)
 
         await channel.send(
-            "How much robux would you like to buy? (FX: 1k, 10k, 100k, 1m)"
+            "How much robux would you like to buy? (FX: 1k, 10k, 100k)"
         )
 
 
@@ -403,7 +403,7 @@ async def pp(ctx):
         await ctx.send("❌ You don't have permission to use this command.")
         return
 
-    await ctx.send("[paypal.com](https://www.paypal.com/paypalme/bodygrave)")
+    await ctx.send("[PayPal.Me/bodygrave](https://www.paypal.com/paypalme/bodygrave)")
 
 
 bot.run(TOKEN)

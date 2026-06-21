@@ -188,9 +188,12 @@ async def on_message(message):
 
                 await channel.edit(name=f"{trade_type}-{payment}")
 
-                await channel.send(
-                    "Perfect, now wait for Grave or an admin to come further assist you."
-                )
+                if trade_type == "buying":
+                    await channel.send(PAYPAL_MESSAGE)
+                else:
+                    await channel.send(
+                        "Perfect, now wait for Grave or an admin to come further assist you."
+                    )
 
                 del channel_state[channel.id]
                 return

@@ -97,32 +97,8 @@ def get_or_create_ticket_state(channel_id):
     return channel_state[channel_id]
 
 
-def safe_username(name):
-    cleaned = re.sub(r"[^a-zA-Z0-9-]", "", name.lower().replace("", "-"))
-    return cleaned[:40] if cleaned else "user"
-
-
 def parse_dhc_millions(amount):
     return int(amount.replace("m", ""))
-
-
-def build_dhc_channel_name(amount, state, guild=None):
-    parts = [amount]
-
-    if state.get("step") == "finished":
-        parts.append("finished")
-    elif state.get("step") == "verified":
-        parts.append("paid")
-
-    claimed_by = state.get("claimed_by")
-    if claimed_by:
-        parts.append("claimed")
-        if guild:
-            member = guild.get_member(claimed_by)
-            if member:
-                parts.append(safe_username(member.display_name))
-
-    return "-".join(parts)
 
 
 def load_stats():
@@ -440,8 +416,7 @@ async def v(ctx):
     state["amount"] = amount
     state["step"] = "verified"
 
-    new_name = build_dhc_channel_name(amount, state, ctx.guild)
-    await channel.edit(name=new_name)
+    await channel.edit(name=f"{amount}-paid")
 
     await channel.send(
         f"✅ Order is verified for item: {amount}!\n\n"
@@ -506,12 +481,6 @@ async def claim(ctx):
 
     state["amount"] = amount
     state["claimed_by"] = ctx.author.id
-
-    if state.get("step") != "verified":
-        state["step"] = "claimed"
-
-    new_name = build_dhc_channel_name(amount, state, ctx.guild)
-    await channel.edit(name=new_name)
 
     await ctx.send(f"✅ {ctx.author.mention} has claimed this ticket.")
 
@@ -615,8 +584,7 @@ async def finished(ctx):
         f"Price: {format_number(rbx_price)} RBX"
     )
 
-    new_name = build_dhc_channel_name(amount, state, ctx.guild)
-    await channel.edit(name=new_name)
+    await channel.edit(name=f"{amount}-finished")
 
 
 # =========================

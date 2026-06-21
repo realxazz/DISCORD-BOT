@@ -418,8 +418,11 @@ async def v(ctx):
 
     state["amount"] = amount
 
-    if state.get("step") is None:
-        state["step"] = "done"
+    if state.get("step") == "finished":
+        await ctx.send("❌ This ticket has already been finished.")
+        return
+
+    state["step"] = "verified"
 
     await channel.edit(name=f"{amount}-paid")
 

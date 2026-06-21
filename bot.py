@@ -50,7 +50,7 @@ dhc_stats = {}
 
 PAYPAL_MESSAGE = (
     "Pay this PayPal (Friends & Family) and send a screenshot afterwards:\n"
-    "[paypal.com](https://www.paypal.com/paypalme/bodygrave)"
+    "[PayPal.Me/bodygrave](https://www.paypal.com/paypalme/bodygrave)"
 )
 
 
@@ -437,7 +437,7 @@ async def pp(ctx):
         await ctx.send("❌ You don't have permission to use this command.")
         return
 
-    await ctx.send("[paypal.com](https://www.paypal.com/paypalme/bodygrave)")
+    await ctx.send("[PayPal.Me/bodygrave](https://www.paypal.com/paypalme/bodygrave)")
 
 
 # =========================

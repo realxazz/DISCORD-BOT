@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import asyncio
 import os
+import re
 
 TOKEN = os.environ["DISCORD_TOKEN"]
 
@@ -17,8 +18,8 @@ channel_state = {}
 STAFF_ROLE_ID = 1517204620525699373
 DROPPER_ROLE_ID = 1293968356558508195
 
-# PUT YOUR LOG CHANNEL ID HERE
-LOG_CHANNEL_ID = 1234567890123456789
+# PUT YOUR REAL LOG CHANNEL ID HERE
+LOG_CHANNEL_ID = 1518372421306941651
 
 ROBLOX_PER_1M = 20
 
@@ -42,25 +43,8 @@ SHIRTS = {
     "25m": "[25 Million DHC Shirt](https://www.roblox.com/catalog/17747315326/25-mil)",
 }
 
-DHC_PRICES = {
-    "1m": 85,
-    "2m": 170,
-    "3m": 255,
-    "4m": 340,
-    "5m": 425,
-    "6m": 510,
-    "7m": 595,
-    "8m": 680,
-    "9m": 765,
-    "10m": 850,
-    "15m": 1275,
-    "20m": 1700,
-    "25m": 2125,
-}
-
 # seller_id -> {"dhc": int, "rbx": int}
 dhc_stats = {}
-
 
 PAYPAL_MESSAGE = (
     "Pay this PayPal (Friends & Family) and send a screenshot afterwards:\n"
@@ -75,18 +59,44 @@ def has_role(member, role_id):
     return any(role.id == role_id for role in member.roles)
 
 
-def get_dhc_amount_from_channel(channel):
-    name = channel.name.lower()
+def format_number(value):
+    return f"{value:,}"
 
-    for key in sorted(SHIRTS.keys(), key=lambda x: len(x), reverse=True):
-        if key in name:
-            return key
+
+def get_dhc_amount_from_text(text):
+    text = text.lower()
+    matches = re.findall(r"(\d+)m", text)
+
+    valid_amounts = {key.replace("m", "") for key in SHIRTS.keys()}
+
+    for match in sorted(matches, key=lambda x: len(x), reverse=True):
+        if match in valid_amounts:
+            return f"{match}m"
 
     return None
 
 
-def format_number(value):
-    return f"{value:,}"
+def get_dhc_amount_from_channel(channel):
+    return get_dhc_amount_from_text(channel.name)
+
+
+def get_or_create_ticket_state(channel_id):
+    if channel_id not in channel_state:
+        channel_state[channel_id] = {
+            "step": None,
+            "amount": None,
+            "claimed_by": None,
+            "finished_by": None,
+        }
+    return channel_state[channel_id]
+
+
+def safe_username(name):
+    return re.sub(r"[^a-zA-Z0-9-]", "", name.lower().replace(" ", "-"))
+
+
+def parse_dhc_millions(amount):
+    return int(amount.replace("m", ""))
 
 
 # =========================
@@ -111,75 +121,48 @@ async def on_guild_channel_create(channel):
 
     cat = channel.category.name.lower()
 
-    # =====================================================
-    # SKINS SYSTEM
-    # =====================================================
     if cat == "skins":
-
         channel_state[channel.id] = {"step": "start"}
 
         await asyncio.sleep(3)
-
         await channel.send(
             "Welcome to the server! Are you selling or buying a skin? "
             "(say 'buying' or 'selling' to continue)"
         )
 
-    # =====================================================
-    # DHC SYSTEM
-    # =====================================================
     elif cat == "dhc":
-
         channel_state[channel.id] = {
             "step": "amount",
-            "amount": None
+            "amount": None,
+            "claimed_by": None,
+            "finished_by": None,
         }
 
         await asyncio.sleep(3)
-
         await channel.send(
             "Welcome to the server! How much Da Hood cash do you want to buy?\n"
             "Reply with: 1m, 2m, 3m, 4m, 5m, 6m, 7m, 8m, 9m, 10m, 15m, 20m, 25m"
         )
 
-    # =====================================================
-    # LIMITEDS SYSTEM
-    # =====================================================
     elif cat == "limiteds":
-
         await asyncio.sleep(1.5)
-
         await channel.send(
             "Limited Tickets are manually handled, wait for Grave or an admin."
         )
 
-    # =====================================================
-    # ADOPT ME SYSTEM
-    # =====================================================
     elif cat == "adopt me":
-
         await asyncio.sleep(1.5)
-
         await channel.send(
             "Adopt Me Tickets are manually handled, wait for Grave or an admin."
         )
 
-    # =====================================================
-    # BLADE BALL SYSTEM
-    # =====================================================
     elif cat == "blade ball":
-
         await asyncio.sleep(1.5)
-
         await channel.send(
             "Blade Ball Tickets are manually handled, wait for Grave or an admin."
         )
 
-    # =====================================================
-    # RBXS SYSTEM
-    # =====================================================
     elif cat == "rbxs":
-
         channel_state[channel.id] = {
             "step": "amount",
             "amount": None,
@@ -187,7 +170,6 @@ async def on_guild_channel_create(channel):
         }
 
         await asyncio.sleep(1.5)
-
         await channel.send(
             "How much robux would you like to buy? (FX: 1k, 10k, 100k, 1m)"
         )
@@ -214,9 +196,6 @@ async def on_message(message):
 
     cat = channel.category.name.lower() if channel.category else ""
 
-    # =====================================================
-    # SKINS SYSTEM
-    # =====================================================
     if cat == "skins":
 
         if state["step"] == "start":
@@ -234,7 +213,6 @@ async def on_message(message):
             return
 
         if state["step"] == "waiting_item":
-
             state["step"] = "payment"
             await channel.send(
                 "Alright perfect, what payment method would you prefer for this? "
@@ -245,7 +223,6 @@ async def on_message(message):
         if state["step"] == "payment":
 
             if "paypal" in content:
-
                 payment = "paypal"
                 trade_type = state.get("type", "unknown")
 
@@ -262,7 +239,6 @@ async def on_message(message):
                 return
 
             if "crypto" in content:
-
                 payment = "crypto"
                 trade_type = state.get("type", "unknown")
 
@@ -275,16 +251,11 @@ async def on_message(message):
                 del channel_state[channel.id]
                 return
 
-    # =====================================================
-    # DHC SYSTEM
-    # =====================================================
     elif cat == "dhc":
 
-        # STEP 1: AMOUNT
         if state["step"] == "amount":
 
             if content in SHIRTS:
-
                 state["amount"] = content
                 state["step"] = "payment"
 
@@ -297,13 +268,10 @@ async def on_message(message):
 
             return
 
-        # STEP 2: PAYMENT
         if state["step"] == "payment":
-
             amount = state.get("amount")
 
             if "robux" in content:
-
                 state["step"] = "waiting_bought"
 
                 await channel.send(
@@ -314,26 +282,18 @@ async def on_message(message):
                 return
 
             if "paypal" in content:
-
                 await channel.send(PAYPAL_MESSAGE)
-
-                del channel_state[channel.id]
                 return
 
             if "crypto" in content:
-
                 await channel.send(
                     "Perfect, now wait for Grave or an admin to come further assist you."
                 )
-
-                del channel_state[channel.id]
                 return
 
-        # STEP 3: BOUGHT + USERNAME
         if state["step"] == "waiting_bought":
 
             if content.startswith("bought"):
-
                 parts = content.split()
 
                 if len(parts) < 2:
@@ -347,18 +307,12 @@ async def on_message(message):
                     f"🧾 Roblox Username: {username}"
                 )
 
-                del channel_state[channel.id]
+                state["step"] = "done"
+                return
 
-            return
-
-    # =====================================================
-    # RBXS SYSTEM
-    # =====================================================
     elif cat == "rbxs":
 
-        # STEP 1: AMOUNT
         if state["step"] == "amount":
-
             state["amount"] = content
             state["step"] = "payment"
 
@@ -370,11 +324,9 @@ async def on_message(message):
             )
             return
 
-        # STEP 2: PAYMENT
         if state["step"] == "payment":
 
             if "crypto" in content or "paypal" in content:
-
                 payment = "crypto" if "crypto" in content else "paypal"
                 amount = state.get("amount", "unknown")
 
@@ -386,9 +338,7 @@ async def on_message(message):
                 await channel.send("How long have you been in the graveyard group?")
             return
 
-        # STEP 3: GROUP TIME
         if state["step"] == "group_time":
-
             await channel.send(
                 "Perfect, now wait for Grave or an admin to come further assist you."
             )
@@ -415,14 +365,17 @@ async def v(ctx):
         await ctx.send("❌ You don't have permission to use this command.")
         return
 
-    amount = get_dhc_amount_from_channel(channel)
+    state = get_or_create_ticket_state(channel.id)
 
-    if not amount and channel.id in channel_state:
-        amount = channel_state[channel.id].get("amount")
+    amount = state.get("amount")
+    if not amount:
+        amount = get_dhc_amount_from_channel(channel)
 
     if not amount:
         await ctx.send("❌ Could not detect the DHC amount for this ticket.")
         return
+
+    state["amount"] = amount
 
     await channel.edit(name=f"{amount}-paid")
 
@@ -467,24 +420,25 @@ async def claim(ctx):
         await ctx.send("❌ This command can only be used in DHC tickets.")
         return
 
-    if channel.id not in channel_state:
-        channel_state[channel.id] = {}
+    state = get_or_create_ticket_state(channel.id)
 
-    if channel_state[channel.id].get("claimed_by"):
+    if state.get("claimed_by"):
         await ctx.send("❌ This ticket has already been claimed.")
         return
 
-    channel_state[channel.id]["claimed_by"] = ctx.author.id
-
-    amount = channel_state[channel.id].get("amount")
+    amount = state.get("amount")
     if not amount:
         amount = get_dhc_amount_from_channel(channel)
 
-    safe_name = ctx.author.name.lower().replace(" ", "-")
-    if amount:
-        await channel.edit(name=f"{amount}-claimed-{safe_name}")
-    else:
-        await channel.edit(name=f"claimed-{safe_name}")
+    if not amount:
+        await ctx.send("❌ Could not detect the DHC amount for this ticket.")
+        return
+
+    state["amount"] = amount
+    state["claimed_by"] = ctx.author.id
+
+    safe_name = safe_username(ctx.author.name)
+    await channel.edit(name=f"{amount}-claimed-{safe_name}")
 
     await ctx.send(f"✅ {ctx.author.mention} has claimed this ticket.")
 
@@ -508,11 +462,9 @@ async def finished(ctx):
         await ctx.send("❌ This command can only be used in DHC tickets.")
         return
 
-    amount = None
+    state = get_or_create_ticket_state(channel.id)
 
-    if channel.id in channel_state:
-        amount = channel_state[channel.id].get("amount")
-
+    amount = state.get("amount")
     if not amount:
         amount = get_dhc_amount_from_channel(channel)
 
@@ -520,15 +472,14 @@ async def finished(ctx):
         await ctx.send("❌ Could not detect the DHC amount for this ticket.")
         return
 
-    claimed_by = None
-    if channel.id in channel_state:
-        claimed_by = channel_state[channel.id].get("claimed_by")
+    state["amount"] = amount
 
+    claimed_by = state.get("claimed_by")
     if claimed_by and claimed_by != ctx.author.id and not has_role(ctx.author, STAFF_ROLE_ID):
         await ctx.send("❌ Only the person who claimed this ticket can finish it.")
         return
 
-    dhc_amount_number = int(amount.replace("m", ""))
+    dhc_amount_number = parse_dhc_millions(amount)
     rbx_price = dhc_amount_number * ROBLOX_PER_1M
 
     if ctx.author.id not in dhc_stats:
@@ -537,7 +488,13 @@ async def finished(ctx):
     dhc_stats[ctx.author.id]["dhc"] += dhc_amount_number
     dhc_stats[ctx.author.id]["rbx"] += rbx_price
 
+    state["finished_by"] = ctx.author.id
+
     log_channel = bot.get_channel(LOG_CHANNEL_ID)
+
+    claimed_member = None
+    if claimed_by:
+        claimed_member = ctx.guild.get_member(claimed_by)
 
     if log_channel:
         embed = discord.Embed(
@@ -545,10 +502,19 @@ async def finished(ctx):
             color=discord.Color.green()
         )
         embed.add_field(name="Finished By", value=ctx.author.mention, inline=False)
+        embed.add_field(
+            name="Claimed By",
+            value=claimed_member.mention if claimed_member else "Not claimed",
+            inline=False
+        )
         embed.add_field(name="Amount", value=amount.upper(), inline=True)
         embed.add_field(name="Price", value=f"{format_number(rbx_price)} RBX", inline=True)
-        embed.add_field(name="Channel", value=channel.mention, inline=False)
-        await log_channel.send(embed=embed)
+        embed.add_field(name="Channel", value=channel.name, inline=False)
+
+        try:
+            await log_channel.send(embed=embed)
+        except Exception as e:
+            await ctx.send(f"⚠️ Could not send log message: {e}")
 
     await channel.send(
         f"✅ Ticket finished and logged.\n"
@@ -557,9 +523,6 @@ async def finished(ctx):
     )
 
     await channel.edit(name=f"{amount}-finished")
-
-    if channel.id in channel_state:
-        del channel_state[channel.id]
 
 
 # =========================
@@ -584,7 +547,15 @@ async def dhc(ctx):
 
     for user_id, stats in sorted_stats[:10]:
         member = ctx.guild.get_member(user_id)
-        name = member.name if member else f"User {user_id}"
+
+        if member:
+            name = member.display_name
+        else:
+            try:
+                user = await bot.fetch_user(user_id)
+                name = user.name
+            except Exception:
+                name = f"User {user_id}"
 
         total_dhc += stats["dhc"]
         total_rbx += stats["rbx"]

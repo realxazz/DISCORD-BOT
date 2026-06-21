@@ -126,10 +126,18 @@ def load_stats():
 def save_stats():
     try:
         serializable = {str(user_id): stats for user_id, stats in dhc_stats.items()}
-        with open(STATS_FILE, "w", encoding="utf-8") as f:
+        temp_file = f"{STATS_FILE}.tmp"
+
+        with open(temp_file, "w", encoding="utf-8") as f:
             json.dump(serializable, f, indent=4)
+            f.flush()
+            os.fsync(f.fileno())
+
+        os.replace(temp_file, STATS_FILE)
+        return True
     except Exception as e:
         print(f"Failed to save stats: {e}")
+        return False
 
 
 # =========================
@@ -437,7 +445,7 @@ async def pp(ctx):
         await ctx.send("❌ You don't have permission to use this command.")
         return
 
-    await ctx.send("[PayPal.Me/bodygrave](https://www.paypal.com/paypalme/bodygrave)")
+    await ctx.send("[paypal.com](https://www.paypal.com/paypalme/bodygrave)")
 
 
 # =========================
@@ -535,7 +543,10 @@ async def finished(ctx):
 
     dhc_stats[ctx.author.id]["dhc"] += dhc_amount_number
     dhc_stats[ctx.author.id]["rbx"] += rbx_price
-    save_stats()
+
+    if not save_stats():
+        await ctx.send("❌ Failed to save DHC stats. The ticket was not safely recorded.")
+        return
 
     state["finished_by"] = ctx.author.id
     state["step"] = "finished"

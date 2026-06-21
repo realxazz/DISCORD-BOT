@@ -106,6 +106,25 @@ def parse_dhc_millions(amount):
     return int(amount.replace("m", ""))
 
 
+def build_dhc_channel_name(amount, state, guild=None):
+    parts = [amount]
+
+    if state.get("step") == "finished":
+        parts.append("finished")
+    elif state.get("step") == "verified":
+        parts.append("paid")
+
+    claimed_by = state.get("claimed_by")
+    if claimed_by:
+        parts.append("claimed")
+        if guild:
+            member = guild.get_member(claimed_by)
+            if member:
+                parts.append(safe_username(member.display_name))
+
+    return "-".join(parts)
+
+
 def load_stats():
     global dhc_stats
 
@@ -424,7 +443,8 @@ async def v(ctx):
 
     state["step"] = "verified"
 
-    await channel.edit(name=f"{amount}-paid")
+    new_name = build_dhc_channel_name(amount, state, ctx.guild)
+    await channel.edit(name=new_name)
 
     await channel.send(
         f"✅ Order is verified for item: {amount}!\n\n"
@@ -489,10 +509,12 @@ async def claim(ctx):
 
     state["amount"] = amount
     state["claimed_by"] = ctx.author.id
-    state["step"] = "claimed"
 
-    safe_name = safe_username(ctx.author.display_name)
-    await channel.edit(name=f"{amount}-claimed-{safe_name}")
+    if state.get("step") != "verified":
+        state["step"] = "claimed"
+
+    new_name = build_dhc_channel_name(amount, state, ctx.guild)
+    await channel.edit(name=new_name)
 
     await ctx.send(f"✅ {ctx.author.mention} has claimed this ticket.")
 
@@ -596,7 +618,8 @@ async def finished(ctx):
         f"Price: {format_number(rbx_price)} RBX"
     )
 
-    await channel.edit(name=f"{amount}-finished")
+    new_name = build_dhc_channel_name(amount, state, ctx.guild)
+    await channel.edit(name=new_name)
 
 
 # =========================
@@ -626,11 +649,11 @@ async def dhc_leaderboard(ctx):
         reverse=True
     )
 
-    lines = []
-    total_dhc = 0
-    total_rbx = 0
+    total_dhc = sum(stats["dhc"] for stats in valid_stats.values())
+    total_rbx = sum(stats["rbx"] for stats in valid_stats.values())
 
-    for user_id, stats in sorted_stats[:10]:
+    lines = []
+    for index, (user_id, stats) in enumerate(sorted_stats[:10], start=1):
         member = ctx.guild.get_member(user_id) if ctx.guild else None
 
         if member:
@@ -642,11 +665,8 @@ async def dhc_leaderboard(ctx):
             except Exception:
                 name = f"User {user_id}"
 
-        total_dhc += stats["dhc"]
-        total_rbx += stats["rbx"]
-
         lines.append(
-            f"**{name}**: {stats['dhc']}m DHC, {format_number(stats['rbx'])} RBX"
+            f"**#{index} {name}** - Dropped: {stats['dhc']}m DHC | Earned: {format_number(stats['rbx'])} RBX"
         )
 
     embed = discord.Embed(
@@ -656,19 +676,22 @@ async def dhc_leaderboard(ctx):
     )
 
     embed.add_field(
-        name="Total Da Hood Cash",
+        name="Total Dropped",
         value=f"{total_dhc}m DHC",
         inline=False
     )
     embed.add_field(
-        name="Total RBX",
+        name="Total Earned",
         value=f"{format_number(total_rbx)} RBX",
         inline=False
     )
-
-    embed.set_thumbnail(
-        url="[tr.rbxcdn.com](https://tr.rbxcdn.com/180DAY-caf45095ca2f66b958e6645e3f5aa6b4/150/150/Image/Webp/noFilter)"
+    embed.add_field(
+        name="Tracked Droppers",
+        value=str(len(valid_stats)),
+        inline=False
     )
+
+    embed.set_footer(text="Showing top 10 droppers by total DHC dropped")
 
     await ctx.send(embed=embed)
 

@@ -18,7 +18,9 @@ STAFF_ROLE_ID = 1517204620525699373
 DROPPER_ROLE_ID = 1293968356558508195
 
 # PUT YOUR LOG CHANNEL ID HERE
-LOG_CHANNEL_ID = 1518372421306941651
+LOG_CHANNEL_ID = 1234567890123456789
+
+ROBLOX_PER_1M = 20
 
 
 # =========================
@@ -76,7 +78,7 @@ def has_role(member, role_id):
 def get_dhc_amount_from_channel(channel):
     name = channel.name.lower()
 
-    for key in sorted(DHC_PRICES.keys(), key=lambda x: len(x), reverse=True):
+    for key in sorted(SHIRTS.keys(), key=lambda x: len(x), reverse=True):
         if key in name:
             return key
 
@@ -413,18 +415,14 @@ async def v(ctx):
         await ctx.send("❌ You don't have permission to use this command.")
         return
 
-    amount = None
-
-    for key in SHIRTS.keys():
-        if key in channel.name.lower():
-            amount = key
-            break
+    amount = get_dhc_amount_from_channel(channel)
 
     if not amount and channel.id in channel_state:
         amount = channel_state[channel.id].get("amount")
 
     if not amount:
-        amount = "unknown"
+        await ctx.send("❌ Could not detect the DHC amount for this ticket.")
+        return
 
     await channel.edit(name=f"{amount}-paid")
 
@@ -522,10 +520,6 @@ async def finished(ctx):
         await ctx.send("❌ Could not detect the DHC amount for this ticket.")
         return
 
-    if amount not in DHC_PRICES:
-        await ctx.send("❌ No price was found for this DHC amount.")
-        return
-
     claimed_by = None
     if channel.id in channel_state:
         claimed_by = channel_state[channel.id].get("claimed_by")
@@ -534,12 +528,12 @@ async def finished(ctx):
         await ctx.send("❌ Only the person who claimed this ticket can finish it.")
         return
 
-    rbx_price = DHC_PRICES[amount]
+    dhc_amount_number = int(amount.replace("m", ""))
+    rbx_price = dhc_amount_number * ROBLOX_PER_1M
 
     if ctx.author.id not in dhc_stats:
         dhc_stats[ctx.author.id] = {"dhc": 0, "rbx": 0}
 
-    dhc_amount_number = int(amount.replace("m", ""))
     dhc_stats[ctx.author.id]["dhc"] += dhc_amount_number
     dhc_stats[ctx.author.id]["rbx"] += rbx_price
 
@@ -550,7 +544,7 @@ async def finished(ctx):
             title="DHC Order Finished",
             color=discord.Color.green()
         )
-        embed.add_field(name="Dropper", value=ctx.author.mention, inline=False)
+        embed.add_field(name="Finished By", value=ctx.author.mention, inline=False)
         embed.add_field(name="Amount", value=amount.upper(), inline=True)
         embed.add_field(name="Price", value=f"{format_number(rbx_price)} RBX", inline=True)
         embed.add_field(name="Channel", value=channel.mention, inline=False)

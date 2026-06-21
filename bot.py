@@ -39,7 +39,7 @@ SHIRTS = {
 
 PAYPAL_MESSAGE = (
     "Pay this PayPal (Friends & Family) and send a screenshot afterwards:\n"
-    "[paypal.com](https://www.paypal.com/paypalme/bodygrave)"
+    "[paypal.me/bodygrave](https://www.paypal.com/paypalme/bodygrave)"
 )
 
 

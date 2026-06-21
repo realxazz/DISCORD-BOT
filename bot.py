@@ -3,6 +3,7 @@ from discord.ext import commands
 import asyncio
 import os
 import re
+import json
 
 TOKEN = os.environ["DISCORD_TOKEN"]
 
@@ -22,6 +23,7 @@ DROPPER_ROLE_ID = 1293968356558508195
 LOG_CHANNEL_ID = 1518372421306941651
 
 ROBLOX_PER_1M = 20
+STATS_FILE = "dhc_stats.json"
 
 
 # =========================
@@ -43,7 +45,7 @@ SHIRTS = {
     "25m": "[25 Million DHC Shirt](https://www.roblox.com/catalog/17747315326/25-mil)",
 }
 
-# seller_id -> {"dhc": int, "rbx": int}
+# user_id -> {"dhc": int, "rbx": int}
 dhc_stats = {}
 
 PAYPAL_MESSAGE = (
@@ -65,13 +67,17 @@ def format_number(value):
 
 def get_dhc_amount_from_text(text):
     text = text.lower()
-    matches = re.findall(r"(\d+)m", text)
+    valid_amounts = set(SHIRTS.keys())
 
-    valid_amounts = {key.replace("m", "") for key in SHIRTS.keys()}
+    for amount in sorted(valid_amounts, key=lambda x: len(x), reverse=True):
+        if amount in text:
+            return amount
 
-    for match in sorted(matches, key=lambda x: len(x), reverse=True):
-        if match in valid_amounts:
-            return f"{match}m"
+    match = re.search(r"\b(\d{1,2})m\b", text)
+    if match:
+        possible_amount = f"{match.group(1)}m"
+        if possible_amount in valid_amounts:
+            return possible_amount
 
     return None
 
@@ -92,11 +98,43 @@ def get_or_create_ticket_state(channel_id):
 
 
 def safe_username(name):
-    return re.sub(r"[^a-zA-Z0-9-]", "", name.lower().replace(" ", "-"))
+    cleaned = re.sub(r"[^a-zA-Z0-9-]", "", name.lower().replace(" ", "-"))
+    return cleaned[:40] if cleaned else "user"
 
 
 def parse_dhc_millions(amount):
     return int(amount.replace("m", ""))
+
+
+def load_stats():
+    global dhc_stats
+
+    if not os.path.exists(STATS_FILE):
+        dhc_stats = {}
+        return
+
+    try:
+        with open(STATS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        dhc_stats = {}
+        for user_id, stats in data.items():
+            dhc_stats[int(user_id)] = {
+                "dhc": int(stats.get("dhc", 0)),
+                "rbx": int(stats.get("rbx", 0)),
+            }
+    except Exception as e:
+        print(f"Failed to load stats: {e}")
+        dhc_stats = {}
+
+
+def save_stats():
+    try:
+        serializable = {str(user_id): stats for user_id, stats in dhc_stats.items()}
+        with open(STATS_FILE, "w", encoding="utf-8") as f:
+            json.dump(serializable, f, indent=4)
+    except Exception as e:
+        print(f"Failed to save stats: {e}")
 
 
 # =========================
@@ -104,6 +142,7 @@ def parse_dhc_millions(amount):
 # =========================
 @bot.event
 async def on_ready():
+    load_stats()
     print(f"Logged in as {bot.user}")
 
 
@@ -271,7 +310,7 @@ async def on_message(message):
         if state["step"] == "payment":
             amount = state.get("amount")
 
-            if "robux" in content:
+            if "robux" in content and amount in SHIRTS:
                 state["step"] = "waiting_bought"
 
                 await channel.send(
@@ -294,13 +333,13 @@ async def on_message(message):
         if state["step"] == "waiting_bought":
 
             if content.startswith("bought"):
-                parts = content.split()
+                parts = content.split(maxsplit=1)
 
                 if len(parts) < 2:
                     await channel.send("Provide your username.")
                     return
 
-                username = parts[1]
+                username = parts[1].strip()
 
                 await channel.send(
                     f"Perfect, now wait for Grave or an admin to come further assist you.\n\n"
@@ -372,7 +411,9 @@ async def v(ctx):
         amount = get_dhc_amount_from_channel(channel)
 
     if not amount:
-        await ctx.send("❌ Could not detect the DHC amount for this ticket.")
+        await ctx.send(
+            "❌ Could not detect the DHC amount for this ticket. Make sure the channel name includes something like 1m, 5m, 10m, etc."
+        )
         return
 
     state["amount"] = amount
@@ -487,14 +528,25 @@ async def finished(ctx):
 
     dhc_stats[ctx.author.id]["dhc"] += dhc_amount_number
     dhc_stats[ctx.author.id]["rbx"] += rbx_price
+    save_stats()
 
     state["finished_by"] = ctx.author.id
 
     log_channel = bot.get_channel(LOG_CHANNEL_ID)
+    if log_channel is None:
+        try:
+            log_channel = await bot.fetch_channel(LOG_CHANNEL_ID)
+        except Exception:
+            log_channel = None
 
     claimed_member = None
     if claimed_by:
         claimed_member = ctx.guild.get_member(claimed_by)
+        if claimed_member is None:
+            try:
+                claimed_member = await bot.fetch_user(claimed_by)
+            except Exception:
+                claimed_member = None
 
     if log_channel:
         embed = discord.Embed(
@@ -509,12 +561,14 @@ async def finished(ctx):
         )
         embed.add_field(name="Amount", value=amount.upper(), inline=True)
         embed.add_field(name="Price", value=f"{format_number(rbx_price)} RBX", inline=True)
-        embed.add_field(name="Channel", value=channel.name, inline=False)
+        embed.add_field(name="Channel", value=channel.mention, inline=False)
 
         try:
             await log_channel.send(embed=embed)
         except Exception as e:
             await ctx.send(f"⚠️ Could not send log message: {e}")
+    else:
+        await ctx.send("⚠️ Log channel not found. Check LOG_CHANNEL_ID.")
 
     await channel.send(
         f"✅ Ticket finished and logged.\n"
@@ -528,8 +582,8 @@ async def finished(ctx):
 # =========================
 # DHC LEADERBOARD COMMAND
 # =========================
-@bot.command()
-async def dhc(ctx):
+@bot.command(name="dhc")
+async def dhc_leaderboard(ctx):
 
     if not dhc_stats:
         await ctx.send("No DHC sales have been logged yet.")

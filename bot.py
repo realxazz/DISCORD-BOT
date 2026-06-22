@@ -102,7 +102,7 @@ def parse_dhc_millions(amount):
 
 
 def load_stats():
-    global dhc_stats
+    global dhc_statsou s
 
     if not os.path.exists(STATS_FILE):
         dhc_stats = {}
@@ -445,7 +445,7 @@ async def pp(ctx):
         await ctx.send("❌ You don't have permission to use this command.")
         return
 
-    await ctx.send("[PayPal.Me/bodygrave](https://www.paypal.com/paypalme/bodygrave)")
+    await ctx.send("[Pay with Friends & Family PayPal.me/bodygrave](https://www.paypal.com/paypalme/bodygrave)")
 
 
 # =========================

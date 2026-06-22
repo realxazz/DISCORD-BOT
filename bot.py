@@ -1,19 +1,11 @@
+import discord
+from discord.ext import commands
 import asyncio
 import os
 import re
+import json
 
-import asyncpg
-import discord
-from discord.ext import commands
-
-TOKEN = os.getenv("DISCORD_TOKEN")
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if not TOKEN:
-    raise RuntimeError("Missing DISCORD_TOKEN environment variable.")
-
-if not DATABASE_URL:
-    raise RuntimeError("Missing DATABASE_URL environment variable.")
+TOKEN = os.environ["DISCORD_TOKEN"]
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -26,10 +18,17 @@ channel_state = {}
 
 STAFF_ROLE_ID = 1517204620525699373
 DROPPER_ROLE_ID = 1293968356558508195
+
+# PUT YOUR REAL LOG CHANNEL ID HERE
 LOG_CHANNEL_ID = 1518372421306941651
 
 ROBLOX_PER_1M = 20
+STATS_FILE = "dhc_stats.json"
 
+
+# =========================
+# SHIRTS (ALL AMOUNTS)
+# =========================
 SHIRTS = {
     "1m": "[1 Million DHC Shirt](https://www.roblox.com/catalog/17747297153/1-mil)",
     "2m": "[2 Million DHC Shirt](https://www.roblox.com/catalog/17747298747/2-mil)",
@@ -46,12 +45,18 @@ SHIRTS = {
     "25m": "[25 Million DHC Shirt](https://www.roblox.com/catalog/17747315326/25-mil)",
 }
 
+# user_id -> {"dhc": int, "rbx": int}
+dhc_stats = {}
+
 PAYPAL_MESSAGE = (
     "Pay this PayPal (Friends & Family) and send a screenshot afterwards:\n"
     "[PayPal.me/bodygrave](https://www.paypal.com/paypalme/bodygrave)"
 )
 
 
+# =========================
+# HELPERS
+# =========================
 def has_role(member, role_id):
     return any(role.id == role_id for role in member.roles)
 
@@ -96,71 +101,60 @@ def parse_dhc_millions(amount):
     return int(amount.replace("m", ""))
 
 
-async def create_db_pool():
-    return await asyncpg.create_pool(
-        dsn=DATABASE_URL,
-        min_size=1,
-        max_size=5,
-        timeout=30,
-        command_timeout=30,
-    )
+def load_stats():
+    global dhc_stats
+
+    if not os.path.exists(STATS_FILE):
+        dhc_stats = {}
+        return
+
+    try:
+        with open(STATS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        dhc_stats = {}
+        for user_id, stats in data.items():
+            dhc_stats[int(user_id)] = {
+                "dhc": int(stats.get("dhc", 0)),
+                "rbx": int(stats.get("rbx", 0)),
+            }
+    except Exception as e:
+        print(f"Failed to load stats: {e}")
+        dhc_stats = {}
 
 
-async def ensure_tables():
-    async with bot.db.acquire() as conn:
-        await conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS dhc_stats (
-                user_id BIGINT PRIMARY KEY,
-                dhc INTEGER NOT NULL DEFAULT 0,
-                rbx INTEGER NOT NULL DEFAULT 0
-            );
-            """
-        )
+def save_stats():
+    try:
+        serializable = {str(user_id): stats for user_id, stats in dhc_stats.items()}
+        temp_file = f"{STATS_FILE}.tmp"
+
+        with open(temp_file, "w", encoding="utf-8") as f:
+            json.dump(serializable, f, indent=4)
+            f.flush()
+            os.fsync(f.fileno())
+
+        os.replace(temp_file, STATS_FILE)
+        return True
+    except Exception as e:
+        print(f"Failed to save stats: {e}")
+        return False
 
 
-async def add_dhc_stat(user_id: int, dhc_amount: int, rbx_amount: int):
-    async with bot.db.acquire() as conn:
-        await conn.execute(
-            """
-            INSERT INTO dhc_stats (user_id, dhc, rbx)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (user_id)
-            DO UPDATE SET
-                dhc = dhc_stats.dhc + EXCLUDED.dhc,
-                rbx = dhc_stats.rbx + EXCLUDED.rbx;
-            """,
-            user_id,
-            dhc_amount,
-            rbx_amount,
-        )
-
-
-async def get_all_dhc_stats():
-    async with bot.db.acquire() as conn:
-        return await conn.fetch(
-            """
-            SELECT user_id, dhc, rbx
-            FROM dhc_stats
-            WHERE dhc > 0 OR rbx > 0
-            ORDER BY dhc DESC, rbx DESC;
-            """
-        )
-
-
-@bot.event
-async def setup_hook():
-    bot.db = await create_db_pool()
-    await ensure_tables()
-
-
+# =========================
+# READY
+# =========================
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user} ({bot.user.id})")
+    load_stats()
+    print(f"Logged in as {bot.user}")
 
 
+# =========================
+# CHANNEL CREATE
+# =========================
 @bot.event
 async def on_guild_channel_create(channel):
+
     if not isinstance(channel, discord.TextChannel):
         return
 
@@ -214,7 +208,7 @@ async def on_guild_channel_create(channel):
         channel_state[channel.id] = {
             "step": "amount",
             "amount": None,
-            "payment": None,
+            "payment": None
         }
 
         await asyncio.sleep(1.5)
@@ -223,34 +217,41 @@ async def on_guild_channel_create(channel):
         )
 
 
+# =========================
+# MESSAGE HANDLER
+# =========================
 @bot.event
 async def on_message(message):
+
     if message.author.bot:
         return
 
-    await bot.process_commands(message)
-
     channel = message.channel
-    if not isinstance(channel, discord.TextChannel):
-        return
+
+    await bot.process_commands(message)
 
     if channel.id not in channel_state:
         return
 
     state = channel_state[channel.id]
     content = message.content.lower().strip()
+
     cat = channel.category.name.lower() if channel.category else ""
 
     if cat == "skins":
+
         if state["step"] == "start":
+
             if "selling" in content:
                 state["type"] = "selling"
                 state["step"] = "waiting_item"
                 await channel.send("Alright! What skin are you Selling?")
+
             elif "buying" in content:
                 state["type"] = "buying"
                 state["step"] = "waiting_item"
                 await channel.send("Alright! What skin are you Buying?")
+
             return
 
         if state["step"] == "waiting_item":
@@ -262,6 +263,7 @@ async def on_message(message):
             return
 
         if state["step"] == "payment":
+
             if "paypal" in content:
                 payment = "paypal"
                 trade_type = state.get("type", "unknown")
@@ -283,6 +285,7 @@ async def on_message(message):
                 trade_type = state.get("type", "unknown")
 
                 await channel.edit(name=f"{trade_type}-{payment}")
+
                 await channel.send(
                     "Perfect, now wait for Grave or an admin to come further assist you."
                 )
@@ -291,7 +294,9 @@ async def on_message(message):
                 return
 
     elif cat == "dhc":
+
         if state["step"] == "amount":
+
             if content in SHIRTS:
                 state["amount"] = content
                 state["step"] = "payment"
@@ -302,6 +307,7 @@ async def on_message(message):
                     "Alright! Now choose the following payment type:\n"
                     "Robux, Crypto, Paypal"
                 )
+
             return
 
         if state["step"] == "payment":
@@ -328,6 +334,7 @@ async def on_message(message):
                 return
 
         if state["step"] == "waiting_bought":
+
             if content.startswith("bought"):
                 parts = content.split(maxsplit=1)
 
@@ -346,6 +353,7 @@ async def on_message(message):
                 return
 
     elif cat == "rbxs":
+
         if state["step"] == "amount":
             state["amount"] = content
             state["step"] = "payment"
@@ -359,6 +367,7 @@ async def on_message(message):
             return
 
         if state["step"] == "payment":
+
             if "crypto" in content or "paypal" in content:
                 payment = "crypto" if "crypto" in content else "paypal"
                 amount = state.get("amount", "unknown")
@@ -367,6 +376,7 @@ async def on_message(message):
                 state["step"] = "group_time"
 
                 await channel.edit(name=f"{amount}-{payment}")
+
                 await channel.send("How long have you been in the graveyard group?")
             return
 
@@ -374,19 +384,23 @@ async def on_message(message):
             await channel.send(
                 "Perfect, now wait for Grave or an admin to come further assist you."
             )
+
             del channel_state[channel.id]
             return
 
 
+# =========================
+# STAFF VERIFY COMMAND
+# =========================
 @bot.command()
 async def v(ctx):
+
     channel = ctx.channel
 
     if not isinstance(channel, discord.TextChannel):
         return
 
     if not channel.category or channel.category.name.lower() != "dhc":
-        await ctx.send("❌ This command can only be used in DHC tickets.")
         return
 
     if not has_role(ctx.author, STAFF_ROLE_ID):
@@ -413,27 +427,33 @@ async def v(ctx):
     await channel.edit(name=f"{amount}-paid")
 
     await channel.send(
-        f"✅ Order is verified for item: {amount.upper()}!\n\n"
+        f"✅ Order is verified for item: {amount}!\n\n"
         "What now?\n"
-        "Please be patient, your order can take up to a few days.\n"
+        "Please be patient, your order can take up to a few days\n"
         "Once a Dropper is available, they will make you join a private server link or ask you to add them on Roblox.\n"
         "After receiving your order, please vouch your dropper."
     )
 
 
+# =========================
+# STAFF PAYPAL COMMAND
+# =========================
 @bot.command()
 async def pp(ctx):
+
     if not has_role(ctx.author, STAFF_ROLE_ID):
         await ctx.send("❌ You don't have permission to use this command.")
         return
 
-    await ctx.send(
-        "[PayPal.me/bodygrave Friends & Family](https://www.paypal.com/paypalme/bodygrave)"
-    )
+    await ctx.send("[PayPal.me/bodygrave Friends & Family](https://www.paypal.com/paypalme/bodygrave)")
 
 
+# =========================
+# CLAIM COMMAND
+# =========================
 @bot.command()
 async def claim(ctx):
+
     channel = ctx.channel
 
     if not isinstance(channel, discord.TextChannel):
@@ -449,7 +469,8 @@ async def claim(ctx):
 
     state = get_or_create_ticket_state(channel.id)
 
-    if state.get("finished_by"):
+    finished_by = state.get("finished_by")
+    if finished_by:
         await ctx.send("❌ This ticket has already been finished.")
         return
 
@@ -472,8 +493,12 @@ async def claim(ctx):
     await ctx.send(f"✅ {ctx.author.mention} has claimed this ticket.")
 
 
+# =========================
+# FINISHED COMMAND
+# =========================
 @bot.command()
 async def finished(ctx):
+
     channel = ctx.channel
 
     if not isinstance(channel, discord.TextChannel):
@@ -513,10 +538,14 @@ async def finished(ctx):
     dhc_amount_number = parse_dhc_millions(amount)
     rbx_price = dhc_amount_number * ROBLOX_PER_1M
 
-    try:
-        await add_dhc_stat(ctx.author.id, dhc_amount_number, rbx_price)
-    except Exception as e:
-        await ctx.send(f"❌ Failed to save DHC stats to database: {e}")
+    if ctx.author.id not in dhc_stats:
+        dhc_stats[ctx.author.id] = {"dhc": 0, "rbx": 0}
+
+    dhc_stats[ctx.author.id]["dhc"] += dhc_amount_number
+    dhc_stats[ctx.author.id]["rbx"] += rbx_price
+
+    if not save_stats():
+        await ctx.send("❌ Failed to save DHC stats. The ticket was not safely recorded.")
         return
 
     state["finished_by"] = ctx.author.id
@@ -531,7 +560,7 @@ async def finished(ctx):
 
     claimed_member = None
     if claimed_by:
-        claimed_member = ctx.guild.get_member(claimed_by) if ctx.guild else None
+        claimed_member = ctx.guild.get_member(claimed_by)
         if claimed_member is None:
             try:
                 claimed_member = await bot.fetch_user(claimed_by)
@@ -569,28 +598,40 @@ async def finished(ctx):
     await channel.edit(name=f"{amount}-finished")
 
 
+# =========================
+# DHC LEADERBOARD COMMAND
+# =========================
 @bot.command(name="dhc")
 async def dhc_leaderboard(ctx):
-    try:
-        rows = await get_all_dhc_stats()
-    except Exception as e:
-        await ctx.send(f"❌ Failed to load leaderboard from database: {e}")
-        return
 
-    if not rows:
+    load_stats()
+
+    valid_stats = {
+        user_id: stats
+        for user_id, stats in dhc_stats.items()
+        if isinstance(stats, dict)
+        and isinstance(stats.get("dhc"), int)
+        and isinstance(stats.get("rbx"), int)
+        and (stats.get("dhc", 0) > 0 or stats.get("rbx", 0) > 0)
+    }
+
+    if not valid_stats:
         await ctx.send("No DHC sales have been logged yet.")
         return
 
-    total_dhc = sum(row["dhc"] for row in rows)
-    total_rbx = sum(row["rbx"] for row in rows)
+    sorted_stats = sorted(
+        valid_stats.items(),
+        key=lambda item: item[1]["dhc"],
+        reverse=True
+    )
+
+    total_dhc = sum(stats["dhc"] for stats in valid_stats.values())
+    total_rbx = sum(stats["rbx"] for stats in valid_stats.values())
 
     lines = []
-    for index, row in enumerate(rows[:10], start=1):
-        user_id = row["user_id"]
-        dhc = row["dhc"]
-        rbx = row["rbx"]
-
+    for index, (user_id, stats) in enumerate(sorted_stats[:10], start=1):
         member = ctx.guild.get_member(user_id) if ctx.guild else None
+
         if member:
             name = member.display_name
         else:
@@ -601,7 +642,7 @@ async def dhc_leaderboard(ctx):
                 name = f"User {user_id}"
 
         lines.append(
-            f"**#{index} {name}** - Dropped: {dhc}m DHC | Earned: {format_number(rbx)} RBX"
+            f"**#{index} {name}** - Dropped: {stats['dhc']}m DHC | Earned: {format_number(stats['rbx'])} RBX"
         )
 
     embed = discord.Embed(
@@ -609,28 +650,26 @@ async def dhc_leaderboard(ctx):
         description="\n".join(lines),
         color=discord.Color.blue()
     )
-    embed.add_field(name="Total Dropped", value=f"{total_dhc}m DHC", inline=False)
-    embed.add_field(name="Total Earned", value=f"{format_number(total_rbx)} RBX", inline=False)
-    embed.add_field(name="Tracked Droppers", value=str(len(rows)), inline=False)
+
+    embed.add_field(
+        name="Total Dropped",
+        value=f"{total_dhc}m DHC",
+        inline=False
+    )
+    embed.add_field(
+        name="Total Earned",
+        value=f"{format_number(total_rbx)} RBX",
+        inline=False
+    )
+    embed.add_field(
+        name="Tracked Droppers",
+        value=str(len(valid_stats)),
+        inline=False
+    )
+
     embed.set_footer(text="Showing top 10 droppers by total DHC dropped")
 
     await ctx.send(embed=embed)
 
 
-@bot.event
-async def on_disconnect():
-    print("Bot disconnected.")
-
-
-async def main():
-    try:
-        async with bot:
-            await bot.start(TOKEN)
-    finally:
-        db = getattr(bot, "db", None)
-        if db is not None:
-            await db.close()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+bot.run(TOKEN)

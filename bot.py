@@ -1,12 +1,19 @@
-import discord
-from discord.ext import commands
 import asyncio
 import os
 import re
-import asyncpg
 
-TOKEN = os.environ["DISCORD_TOKEN"]
-DATABASE_URL = os.environ["DATABASE_URL"]
+import asyncpg
+import discord
+from discord.ext import commands
+
+TOKEN = os.getenv("DISCORD_TOKEN")
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not TOKEN:
+    raise RuntimeError("Missing DISCORD_TOKEN environment variable.")
+
+if not DATABASE_URL:
+    raise RuntimeError("Missing DATABASE_URL environment variable.")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -91,14 +98,15 @@ def parse_dhc_millions(amount):
 
 async def create_db_pool():
     return await asyncpg.create_pool(
-        DATABASE_URL,
+        dsn=DATABASE_URL,
         min_size=1,
         max_size=5,
-        command_timeout=60,
+        timeout=30,
+        command_timeout=30,
     )
 
 
-async def setup_database():
+async def ensure_tables():
     async with bot.db.acquire() as conn:
         await conn.execute(
             """
@@ -130,7 +138,7 @@ async def add_dhc_stat(user_id: int, dhc_amount: int, rbx_amount: int):
 
 async def get_all_dhc_stats():
     async with bot.db.acquire() as conn:
-        rows = await conn.fetch(
+        return await conn.fetch(
             """
             SELECT user_id, dhc, rbx
             FROM dhc_stats
@@ -138,22 +146,17 @@ async def get_all_dhc_stats():
             ORDER BY dhc DESC, rbx DESC;
             """
         )
-        return rows
-
-
-@bot.event
-async def on_ready():
-    if not hasattr(bot, "db") or bot.db is None:
-        bot.db = await create_db_pool()
-        await setup_database()
-
-    print(f"Logged in as {bot.user}")
 
 
 @bot.event
 async def setup_hook():
     bot.db = await create_db_pool()
-    await setup_database()
+    await ensure_tables()
+
+
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user} ({bot.user.id})")
 
 
 @bot.event
@@ -211,7 +214,7 @@ async def on_guild_channel_create(channel):
         channel_state[channel.id] = {
             "step": "amount",
             "amount": None,
-            "payment": None
+            "payment": None,
         }
 
         await asyncio.sleep(1.5)
@@ -225,16 +228,17 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    channel = message.channel
-
     await bot.process_commands(message)
+
+    channel = message.channel
+    if not isinstance(channel, discord.TextChannel):
+        return
 
     if channel.id not in channel_state:
         return
 
     state = channel_state[channel.id]
     content = message.content.lower().strip()
-
     cat = channel.category.name.lower() if channel.category else ""
 
     if cat == "skins":
@@ -243,12 +247,10 @@ async def on_message(message):
                 state["type"] = "selling"
                 state["step"] = "waiting_item"
                 await channel.send("Alright! What skin are you Selling?")
-
             elif "buying" in content:
                 state["type"] = "buying"
                 state["step"] = "waiting_item"
                 await channel.send("Alright! What skin are you Buying?")
-
             return
 
         if state["step"] == "waiting_item":
@@ -281,7 +283,6 @@ async def on_message(message):
                 trade_type = state.get("type", "unknown")
 
                 await channel.edit(name=f"{trade_type}-{payment}")
-
                 await channel.send(
                     "Perfect, now wait for Grave or an admin to come further assist you."
                 )
@@ -301,7 +302,6 @@ async def on_message(message):
                     "Alright! Now choose the following payment type:\n"
                     "Robux, Crypto, Paypal"
                 )
-
             return
 
         if state["step"] == "payment":
@@ -367,7 +367,6 @@ async def on_message(message):
                 state["step"] = "group_time"
 
                 await channel.edit(name=f"{amount}-{payment}")
-
                 await channel.send("How long have you been in the graveyard group?")
             return
 
@@ -375,7 +374,6 @@ async def on_message(message):
             await channel.send(
                 "Perfect, now wait for Grave or an admin to come further assist you."
             )
-
             del channel_state[channel.id]
             return
 
@@ -429,7 +427,9 @@ async def pp(ctx):
         await ctx.send("❌ You don't have permission to use this command.")
         return
 
-    await ctx.send("[PayPal.me/bodygrave Friends & Family](https://www.paypal.com/paypalme/bodygrave)")
+    await ctx.send(
+        "[PayPal.me/bodygrave Friends & Family](https://www.paypal.com/paypalme/bodygrave)"
+    )
 
 
 @bot.command()
@@ -449,8 +449,7 @@ async def claim(ctx):
 
     state = get_or_create_ticket_state(channel.id)
 
-    finished_by = state.get("finished_by")
-    if finished_by:
+    if state.get("finished_by"):
         await ctx.send("❌ This ticket has already been finished.")
         return
 
@@ -592,7 +591,6 @@ async def dhc_leaderboard(ctx):
         rbx = row["rbx"]
 
         member = ctx.guild.get_member(user_id) if ctx.guild else None
-
         if member:
             name = member.display_name
         else:
@@ -611,23 +609,9 @@ async def dhc_leaderboard(ctx):
         description="\n".join(lines),
         color=discord.Color.blue()
     )
-
-    embed.add_field(
-        name="Total Dropped",
-        value=f"{total_dhc}m DHC",
-        inline=False
-    )
-    embed.add_field(
-        name="Total Earned",
-        value=f"{format_number(total_rbx)} RBX",
-        inline=False
-    )
-    embed.add_field(
-        name="Tracked Droppers",
-        value=str(len(rows)),
-        inline=False
-    )
-
+    embed.add_field(name="Total Dropped", value=f"{total_dhc}m DHC", inline=False)
+    embed.add_field(name="Total Earned", value=f"{format_number(total_rbx)} RBX", inline=False)
+    embed.add_field(name="Tracked Droppers", value=str(len(rows)), inline=False)
     embed.set_footer(text="Showing top 10 droppers by total DHC dropped")
 
     await ctx.send(embed=embed)
@@ -639,8 +623,13 @@ async def on_disconnect():
 
 
 async def main():
-    async with bot:
-        await bot.start(TOKEN)
+    try:
+        async with bot:
+            await bot.start(TOKEN)
+    finally:
+        db = getattr(bot, "db", None)
+        if db is not None:
+            await db.close()
 
 
 if __name__ == "__main__":

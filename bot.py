@@ -445,7 +445,7 @@ async def pp(ctx):
         await ctx.send("❌ You don't have permission to use this command.")
         return
 
-    await ctx.send("[PayPal.me/bodygrave](https://www.paypal.com/paypalme/bodygrave)")
+    await ctx.send("[PayPal.me/bodygrave Friends & Family](https://www.paypal.com/paypalme/bodygrave)")
 
 
 # =========================
